@@ -14,14 +14,15 @@ from typing import Any
 from google_play_scraper import Sort, reviews
 
 
-MAX_REVIEWS_PER_APP = 100
+MAX_REVIEWS_PER_APP = 500
+REVIEWS_PER_PAGE = 100
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RAW_OUTPUT_DIR = PROJECT_ROOT / "data" / "raw" / "google_play"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Fetch up to 100 newest Google Play reviews per app package."
+        description=f"Fetch up to {MAX_REVIEWS_PER_APP} newest Google Play reviews per app package."
     )
     parser.add_argument(
         "packages",
@@ -44,14 +45,43 @@ def serialize_review(review: dict[str, Any], app_name: str) -> dict[str, str | i
 
 def fetch_reviews(package_name: str) -> list[dict[str, str | int]]:
     """Return no more than MAX_REVIEWS_PER_APP newest reviews for one package."""
-    fetched_reviews, _ = reviews(
-        package_name,
-        lang="en",
-        country="us",
-        sort=Sort.NEWEST,
-        count=MAX_REVIEWS_PER_APP,
-    )
-    return [serialize_review(review, package_name) for review in fetched_reviews]
+    collected_reviews: list[dict[str, str | int]] = []
+    continuation_token = None
+    page = 1
+
+    while len(collected_reviews) < MAX_REVIEWS_PER_APP:
+        fetched_reviews, continuation_token = reviews(
+            package_name,
+            lang="en",
+            country="us",
+            sort=Sort.NEWEST,
+            count=REVIEWS_PER_PAGE,
+            continuation_token=continuation_token,
+        )
+        if not fetched_reviews:
+            break
+
+        remaining_reviews = MAX_REVIEWS_PER_APP - len(collected_reviews)
+        collected_reviews.extend(
+            serialize_review(review, package_name)
+            for review in fetched_reviews[:remaining_reviews]
+        )
+
+        output_path = save_reviews(package_name, collected_reviews)
+        print(
+            f"{package_name}: checkpoint after page {page} "
+            f"({len(collected_reviews)} reviews) -> {output_path}"
+        )
+
+        if continuation_token.token is None:
+            break
+        page += 1
+
+    if not collected_reviews:
+        raise RuntimeError(
+            "Google Play returned no usable reviews; no file was written"
+        )
+    return collected_reviews
 
 
 def save_reviews(package_name: str, app_reviews: list[dict[str, str | int]]) -> Path:
