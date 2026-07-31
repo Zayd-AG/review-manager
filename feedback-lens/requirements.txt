@@ -1,0 +1,15 @@
+transformers
+peft
+trl
+accelerate
+torch
+sentence-transformers
+psycopg2-binary
+sqlalchemy
+fastapi
+uvicorn
+google-play-scraper
+app-store-scraper
+python-dotenv
+wandb
+anthropic
