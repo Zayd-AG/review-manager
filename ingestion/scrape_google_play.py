@@ -14,7 +14,7 @@ from typing import Any
 from google_play_scraper import Sort, reviews
 
 
-MAX_REVIEWS_PER_APP = 500
+DEFAULT_REVIEW_LIMIT = 100
 REVIEWS_PER_PAGE = 100
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RAW_OUTPUT_DIR = PROJECT_ROOT / "data" / "raw" / "google_play"
@@ -22,14 +22,23 @@ RAW_OUTPUT_DIR = PROJECT_ROOT / "data" / "raw" / "google_play"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=f"Fetch up to {MAX_REVIEWS_PER_APP} newest Google Play reviews per app package."
+        description="Fetch up to 100 newest Google Play reviews per app package by default."
     )
     parser.add_argument(
         "packages",
         nargs="+",
         help="Google Play package names, e.g. com.spotify.music",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=DEFAULT_REVIEW_LIMIT,
+        help="Maximum reviews to fetch per app (default: 100)",
+    )
+    args = parser.parse_args()
+    if args.limit < 1:
+        parser.error("--limit must be at least 1")
+    return args
 
 
 def serialize_review(review: dict[str, Any], app_name: str) -> dict[str, str | int]:
@@ -43,25 +52,25 @@ def serialize_review(review: dict[str, Any], app_name: str) -> dict[str, str | i
     }
 
 
-def fetch_reviews(package_name: str) -> list[dict[str, str | int]]:
-    """Return no more than MAX_REVIEWS_PER_APP newest reviews for one package."""
+def fetch_reviews(package_name: str, limit: int) -> list[dict[str, str | int]]:
+    """Return no more than limit newest reviews for one package."""
     collected_reviews: list[dict[str, str | int]] = []
     continuation_token = None
     page = 1
 
-    while len(collected_reviews) < MAX_REVIEWS_PER_APP:
+    while len(collected_reviews) < limit:
         fetched_reviews, continuation_token = reviews(
             package_name,
             lang="en",
             country="us",
             sort=Sort.NEWEST,
-            count=REVIEWS_PER_PAGE,
+            count=min(REVIEWS_PER_PAGE, limit),
             continuation_token=continuation_token,
         )
         if not fetched_reviews:
             break
 
-        remaining_reviews = MAX_REVIEWS_PER_APP - len(collected_reviews)
+        remaining_reviews = limit - len(collected_reviews)
         collected_reviews.extend(
             serialize_review(review, package_name)
             for review in fetched_reviews[:remaining_reviews]
@@ -96,7 +105,7 @@ def main() -> None:
 
     for package_name in args.packages:
         try:
-            app_reviews = fetch_reviews(package_name)
+            app_reviews = fetch_reviews(package_name, args.limit)
             output_path = save_reviews(package_name, app_reviews)
             print(f"{package_name}: pulled {len(app_reviews)} reviews -> {output_path}")
         except Exception as error:

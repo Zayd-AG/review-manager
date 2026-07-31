@@ -1,7 +1,7 @@
 [project]
-name = "review-manager"
+name = "feedback-lens"
 version = "0.1.0"
-description = "Add your description here"
+description = "Product review ingestion, labeling, and analysis."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11,<3.12"
 dependencies = []

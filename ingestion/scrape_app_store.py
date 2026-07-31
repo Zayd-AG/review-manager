@@ -14,7 +14,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
-MAX_REVIEWS_PER_APP = 500
+DEFAULT_REVIEW_LIMIT = 100
 REVIEWS_PER_PAGE = 50
 MAX_REVIEW_PAGES = 10
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +23,7 @@ RAW_OUTPUT_DIR = PROJECT_ROOT / "data" / "raw" / "app_store"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=f"Fetch up to {MAX_REVIEWS_PER_APP} newest App Store reviews per app."
+        description="Fetch up to 100 newest App Store reviews per app by default."
     )
     parser.add_argument(
         "apps",
@@ -31,7 +31,16 @@ def parse_args() -> argparse.Namespace:
         metavar="APP_NAME:APP_ID",
         help="App Store app pairs, e.g. discord:985746746",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=DEFAULT_REVIEW_LIMIT,
+        help="Maximum reviews to fetch per app (default: 100)",
+    )
+    args = parser.parse_args()
+    if args.limit < 1:
+        parser.error("--limit must be at least 1")
+    return args
 
 
 def parse_app_spec(app_spec: str) -> tuple[str, str]:
@@ -85,12 +94,14 @@ def serialize_review(review: dict[str, Any], app_name: str) -> dict[str, str | i
     }
 
 
-def fetch_reviews(app_name: str, app_id: str) -> list[dict[str, str | int]]:
-    """Return no more than MAX_REVIEWS_PER_APP newest reviews for one iOS app."""
+def fetch_reviews(
+    app_name: str, app_id: str, limit: int
+) -> list[dict[str, str | int]]:
+    """Return no more than limit newest reviews for one iOS app."""
     collected_reviews: list[dict[str, str | int]] = []
     page = 1
 
-    while len(collected_reviews) < MAX_REVIEWS_PER_APP and page <= MAX_REVIEW_PAGES:
+    while len(collected_reviews) < limit and page <= MAX_REVIEW_PAGES:
         entries = fetch_feed_page(app_id, page)
         if not entries:
             break
@@ -104,7 +115,7 @@ def fetch_reviews(app_name: str, app_id: str) -> list[dict[str, str | int]]:
                 continue
             except ValueError:
                 continue
-            if len(collected_reviews) == MAX_REVIEWS_PER_APP:
+            if len(collected_reviews) == limit:
                 break
 
         if collected_reviews:
@@ -136,7 +147,7 @@ def main() -> None:
     for app_spec in args.apps:
         try:
             app_name, app_id = parse_app_spec(app_spec)
-            app_reviews = fetch_reviews(app_name, app_id)
+            app_reviews = fetch_reviews(app_name, app_id, args.limit)
             output_path = save_reviews(app_name, app_reviews)
             print(f"{app_name}: pulled {len(app_reviews)} reviews -> {output_path}")
         except Exception as error:

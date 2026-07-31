@@ -153,6 +153,8 @@ activemq-data/
 .env
 .envrc
 .venv
+.uv-cache/
+.uv-python/
 env/
 venv/
 ENV/
@@ -204,6 +206,13 @@ cython_debug/
 # .vscode/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
+
+# Feedback Lens local datasets, models, and frontend dependencies
+data/raw/
+data/processed/
+*.pt
+*.safetensors
+node_modules/
 
 # Ruff stuff:
 .ruff_cache/
