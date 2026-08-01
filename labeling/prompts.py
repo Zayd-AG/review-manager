@@ -15,6 +15,16 @@ CATEGORIES = (
     "other",
 )
 SEVERITIES = ("low", "medium", "high")
+LABEL_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["category", "severity", "justification"],
+    "properties": {
+        "category": {"type": "string", "enum": list(CATEGORIES)},
+        "severity": {"type": "string", "enum": list(SEVERITIES)},
+        "justification": {"type": "string"},
+    },
+}
 
 
 def build_labeling_prompt(review_text: str) -> str:

@@ -6,23 +6,46 @@ Run from the project root after setting ANTHROPIC_API_KEY in feedback-lens/.env:
 
 from __future__ import annotations
 
+import argparse
 import json
+import math
 import os
+import time
 from pathlib import Path
 from typing import Any
 
 import anthropic
 from dotenv import load_dotenv
 
-from prompts import CATEGORIES, SEVERITIES, build_labeling_prompt
+from prompts import CATEGORIES, LABEL_SCHEMA, SEVERITIES, build_labeling_prompt
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "reviews_normalized.jsonl"
+OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "pseudo_labels.jsonl"
 DRY_RUN_LIMIT = 10
+BATCH_SIZE = 50
+MAX_RETRIES = 3
+CHARS_PER_TOKEN_ESTIMATE = 4
+ESTIMATED_OUTPUT_TOKENS_PER_REVIEW = 80
+MODEL_PRICING_PER_MILLION = {
+    "claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
+}
 
 
-def load_first_reviews(path: Path, limit: int) -> list[dict[str, Any]]:
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Label a 10-review dry run or estimate full-dataset labeling cost."
+    )
+    parser.add_argument(
+        "--estimate-only",
+        action="store_true",
+        help="Estimate full-dataset tokens and cost without calling the API.",
+    )
+    return parser.parse_args()
+
+
+def load_reviews(path: Path, limit: int | None = None) -> list[dict[str, Any]]:
     reviews: list[dict[str, Any]] = []
     with path.open(encoding="utf-8") as input_file:
         for line_number, line in enumerate(input_file, start=1):
@@ -35,9 +58,74 @@ def load_first_reviews(path: Path, limit: int) -> list[dict[str, Any]]:
             if not isinstance(review, dict):
                 raise ValueError(f"Expected an object on line {line_number}")
             reviews.append(review)
-            if len(reviews) == limit:
+            if limit is not None and len(reviews) == limit:
                 break
     return reviews
+
+
+def count_reviews(path: Path) -> int:
+    with path.open(encoding="utf-8") as input_file:
+        return sum(1 for line in input_file if line.strip())
+
+
+def estimate_tokens(text: str) -> int:
+    """Estimate token count using a four-characters-per-token approximation."""
+    return math.ceil(len(text) / CHARS_PER_TOKEN_ESTIMATE)
+
+
+def print_cost_estimate(model: str) -> None:
+    if model not in MODEL_PRICING_PER_MILLION:
+        known_models = ", ".join(sorted(MODEL_PRICING_PER_MILLION))
+        raise ValueError(
+            f"No pricing configured for '{model}'. Add it to MODEL_PRICING_PER_MILLION "
+            f"(known: {known_models})."
+        )
+
+    sample_reviews = load_reviews(INPUT_PATH, DRY_RUN_LIMIT)
+    if not sample_reviews:
+        raise RuntimeError(f"No reviews found in {INPUT_PATH}")
+    dataset_review_count = count_reviews(INPUT_PATH)
+
+    average_input_tokens = sum(
+        estimate_tokens(build_labeling_prompt(str(review.get("text", ""))))
+        for review in sample_reviews
+    ) / len(sample_reviews)
+    estimated_input_tokens = math.ceil(average_input_tokens * dataset_review_count)
+    estimated_output_tokens = ESTIMATED_OUTPUT_TOKENS_PER_REVIEW * dataset_review_count
+    pricing = MODEL_PRICING_PER_MILLION[model]
+    estimated_cost = (
+        estimated_input_tokens * pricing["input"]
+        + estimated_output_tokens * pricing["output"]
+    ) / 1_000_000
+
+    print(
+        json.dumps(
+            {
+                "mode": "estimate_only",
+                "model": model,
+                "dataset_reviews": dataset_review_count,
+                "sample_reviews": len(sample_reviews),
+                "average_estimated_input_tokens_per_review": round(
+                    average_input_tokens, 1
+                ),
+                "assumed_output_tokens_per_review": ESTIMATED_OUTPUT_TOKENS_PER_REVIEW,
+                "estimated_input_tokens": estimated_input_tokens,
+                "estimated_output_tokens": estimated_output_tokens,
+                "estimated_total_tokens": estimated_input_tokens
+                + estimated_output_tokens,
+                "estimated_cost_usd": round(estimated_cost, 4),
+                "assumptions": {
+                    "token_estimation": "4 characters per token",
+                    "input_price_per_million_usd": pricing["input"],
+                    "output_price_per_million_usd": pricing["output"],
+                    "output_token_estimate": (
+                        "80 tokens per JSON label; sample API usage was not persisted"
+                    ),
+                },
+            },
+            indent=2,
+        )
+    )
 
 
 def parse_label(response_text: str) -> dict[str, str]:
@@ -59,45 +147,128 @@ def parse_label(response_text: str) -> dict[str, str]:
     return label
 
 
+def response_text(response: anthropic.types.Message) -> str:
+    """Extract all text blocks, ignoring any non-text model content blocks."""
+    return "".join(
+        block.text for block in response.content if block.type == "text"
+    ).strip()
+
+
+def load_completed_ids(path: Path) -> set[str]:
+    """Return IDs already written to the incremental pseudo-label file."""
+    if not path.exists():
+        return set()
+
+    completed_ids: set[str] = set()
+    with path.open(encoding="utf-8") as output_file:
+        for line_number, line in enumerate(output_file, start=1):
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise ValueError(f"Invalid JSON in {path} on line {line_number}") from error
+            review_id = record.get("review_id")
+            if isinstance(review_id, str):
+                completed_ids.add(review_id)
+    return completed_ids
+
+
+def label_review(
+    client: anthropic.Anthropic, model: str, review: dict[str, Any]
+) -> dict[str, str]:
+    """Label one review, retrying transient API and validation failures."""
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = client.messages.create(
+                model=model,
+                max_tokens=256,
+                temperature=0,
+                thinking={"type": "disabled"},
+                output_config={
+                    "format": {"type": "json_schema", "schema": LABEL_SCHEMA}
+                },
+                messages=[
+                    {
+                        "role": "user",
+                        "content": build_labeling_prompt(str(review.get("text", ""))),
+                    }
+                ],
+            )
+            return parse_label(response_text(response))
+        except (anthropic.APIError, ValueError) as error:
+            if attempt == MAX_RETRIES:
+                raise RuntimeError(
+                    f"Failed to label review {review.get('id')} after {MAX_RETRIES} attempts"
+                ) from error
+            delay_seconds = 2 ** (attempt - 1)
+            print(
+                f"Retrying review {review.get('id')} after error: {error} "
+                f"(attempt {attempt}/{MAX_RETRIES})"
+            )
+            time.sleep(delay_seconds)
+
+    raise RuntimeError("Unreachable retry state")
+
+
+def label_full_dataset(client: anthropic.Anthropic, model: str) -> None:
+    all_reviews = load_reviews(INPUT_PATH)
+    completed_ids = load_completed_ids(OUTPUT_PATH)
+    pending_reviews = [
+        review for review in all_reviews if str(review.get("id", "")) not in completed_ids
+    ]
+
+    print(
+        f"Starting with {len(completed_ids)} saved labels; "
+        f"{len(pending_reviews)} reviews remain."
+    )
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    newly_labeled = 0
+    with OUTPUT_PATH.open("a", encoding="utf-8") as output_file:
+        for batch_start in range(0, len(pending_reviews), BATCH_SIZE):
+            batch = pending_reviews[batch_start : batch_start + BATCH_SIZE]
+            for review in batch:
+                label = label_review(client, model, review)
+                output_file.write(
+                    json.dumps(
+                        {
+                            "review_id": review.get("id"),
+                            "category": label["category"],
+                            "severity": label["severity"],
+                            "justification": label["justification"],
+                            "teacher_model": model,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+                output_file.flush()
+                os.fsync(output_file.fileno())
+                newly_labeled += 1
+
+            total_completed = len(completed_ids) + newly_labeled
+            print(
+                f"Processed {total_completed}/{len(all_reviews)} reviews "
+                f"(completed batch of {len(batch)})."
+            )
+
+
 def main() -> None:
+    args = parse_args()
     load_dotenv(PROJECT_ROOT / ".env")
+    model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+    if args.estimate_only:
+        print_cost_estimate(model)
+        return
+
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError(
-            "ANTHROPIC_API_KEY is not set. Add it to feedback-lens/.env before running."
+            "ANTHROPIC_API_KEY is not set. Add it to the project root .env before running."
         )
-    model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
-
-    reviews = load_first_reviews(INPUT_PATH, DRY_RUN_LIMIT)
-    if not reviews:
-        raise RuntimeError(f"No reviews found in {INPUT_PATH}")
 
     client = anthropic.Anthropic(api_key=api_key)
-    for review in reviews:
-        response = client.messages.create(
-            model=model,
-            max_tokens=256,
-            temperature=0,
-            messages=[
-                {
-                    "role": "user",
-                    "content": build_labeling_prompt(str(review.get("text", ""))),
-                }
-            ],
-        )
-        label = parse_label(response.content[0].text)
-        print(
-            json.dumps(
-                {
-                    "review_id": review.get("id"),
-                    "app_name": review.get("app_name"),
-                    "source": review.get("source"),
-                    "label": label,
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
+    label_full_dataset(client, model)
 
 
 if __name__ == "__main__":
