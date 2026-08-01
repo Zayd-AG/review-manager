@@ -211,6 +211,7 @@ tempCodeRunnerFile.py
 data/raw/
 data/processed/
 finetuning/data/
+finetuning/checkpoints/
 *.pt
 *.safetensors
 node_modules/
