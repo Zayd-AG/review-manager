@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-import matplotlib
-
-matplotlib.use("Agg")
+# This script writes a PNG and must not depend on Tk being installed.
+os.environ.setdefault("MPLBACKEND", "Agg")
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -91,7 +91,7 @@ def print_table(summary: pd.DataFrame, review_count: Any, source: Path) -> None:
         }
     )
 
-    print(f"Evaluation — {review_count} reviews")
+    print(f"Evaluation - {review_count} reviews")
     print(f"Comparison: {source}\n")
     print(display.to_string(index=False, justify="center", col_space={"System": 18}))
 
@@ -133,9 +133,14 @@ def create_dashboard(
     table_data["Cost / 1K ($)"] = table_data["Cost / 1K ($)"].map(
         lambda value: f"${value:.4f}"
     )
+    cell_text: list[list[str]] = [
+        [str(value) for value in row]
+        for row in table_data.itertuples(index=False, name=None)
+    ]
+    column_labels = [str(column) for column in table_data.columns]
     rendered_table = table_axis.table(
-        cellText=table_data.values,
-        colLabels=table_data.columns,
+        cellText=cell_text,
+        colLabels=column_labels,
         cellLoc="center",
         loc="center",
     )

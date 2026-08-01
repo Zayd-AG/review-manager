@@ -55,7 +55,9 @@ def serialize_review(review: dict[str, Any], app_name: str) -> dict[str, str | i
 def fetch_reviews(package_name: str, limit: int) -> list[dict[str, str | int]]:
     """Return no more than limit newest reviews for one package."""
     collected_reviews: list[dict[str, str | int]] = []
-    continuation_token = None
+    # The package's type hints say this argument is required even though the
+    # first request must pass None. Keep it Any at this library boundary.
+    continuation_token: Any = None
     page = 1
 
     while len(collected_reviews) < limit:
@@ -108,7 +110,7 @@ def main() -> None:
             app_reviews = fetch_reviews(package_name, args.limit)
             output_path = save_reviews(package_name, app_reviews)
             print(f"{package_name}: pulled {len(app_reviews)} reviews -> {output_path}")
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             print(f"{package_name}: failed to pull reviews ({error})")
 
 

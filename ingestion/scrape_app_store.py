@@ -150,7 +150,7 @@ def main() -> None:
             app_reviews = fetch_reviews(app_name, app_id, args.limit)
             output_path = save_reviews(app_name, app_reviews)
             print(f"{app_name}: pulled {len(app_reviews)} reviews -> {output_path}")
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             print(f"{app_spec}: failed to pull reviews ({error})")
 
 

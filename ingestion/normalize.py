@@ -96,8 +96,12 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    source_counts = Counter(review["source"] for review in normalized_reviews)
-    app_counts = Counter(review["app_name"] for review in normalized_reviews)
+    source_counts: Counter[str] = Counter(
+        str(review["source"]) for review in normalized_reviews
+    )
+    app_counts: Counter[str] = Counter(
+        str(review["app_name"]) for review in normalized_reviews
+    )
 
     summary: dict[str, Any] = {
         "total_reviews": len(normalized_reviews),
