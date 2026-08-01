@@ -1,0 +1,95 @@
+"""FastAPI routes for the Feedback Lens dashboard and live classifier."""
+
+from __future__ import annotations
+
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from backend.app.db import get_db
+from backend.app.models import Cluster, ClusterMember, FeedbackItem
+from backend.app.schemas import (
+    ClassificationResponse,
+    ClassifyRequest,
+    ClusterDetailResponse,
+    DashboardClusterResponse,
+    FeedbackItemResponse,
+)
+from backend.app.services.classifier import classifier
+
+
+router = APIRouter()
+SEVERITY_WEIGHTS = {"high": 3, "medium": 2, "low": 1}
+
+
+@router.get("/dashboard", response_model=list[DashboardClusterResponse])
+def dashboard(
+    category: str | None = None,
+    source: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+) -> list[DashboardClusterResponse]:
+    statement = select(Cluster)
+    if category:
+        statement = statement.where(Cluster.category == category)
+    if source:
+        statement = (
+            statement.join(ClusterMember, ClusterMember.cluster_id == Cluster.id)
+            .join(FeedbackItem, FeedbackItem.id == ClusterMember.review_id)
+            .where(FeedbackItem.source == source)
+            .distinct()
+        )
+
+    clusters = db.scalars(statement).all()
+    ranked = sorted(
+        clusters,
+        key=lambda cluster: cluster.count * SEVERITY_WEIGHTS.get(cluster.severity or "", 1),
+        reverse=True,
+    )[:limit]
+    return [
+        DashboardClusterResponse(
+            id=cluster.id,
+            representative_text=cluster.representative_text,
+            category=cluster.category,
+            severity=cluster.severity,
+            count=cluster.count,
+            priority_score=cluster.count
+            * SEVERITY_WEIGHTS.get(cluster.severity or "", 1),
+        )
+        for cluster in ranked
+    ]
+
+
+@router.get("/clusters/{cluster_id}", response_model=ClusterDetailResponse)
+def cluster_detail(cluster_id: str, db: Session = Depends(get_db)) -> ClusterDetailResponse:
+    cluster = db.get(Cluster, cluster_id)
+    if cluster is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cluster not found")
+
+    reviews = db.scalars(
+        select(FeedbackItem)
+        .join(ClusterMember, ClusterMember.review_id == FeedbackItem.id)
+        .where(ClusterMember.cluster_id == cluster_id)
+        .order_by(FeedbackItem.date.desc())
+    ).all()
+    return ClusterDetailResponse(
+        **cluster.__dict__,
+        source_reviews=[FeedbackItemResponse.model_validate(review) for review in reviews],
+    )
+
+
+@router.post("/classify", response_model=ClassificationResponse)
+def classify(payload: ClassifyRequest) -> ClassificationResponse:
+    if not payload.text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="text must not be empty",
+        )
+    try:
+        return ClassificationResponse(**classifier.classify(payload.text))
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)) from error
+    except (ValueError, json.JSONDecodeError) as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error

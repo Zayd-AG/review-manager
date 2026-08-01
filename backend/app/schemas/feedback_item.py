@@ -33,3 +33,13 @@ class FeedbackItemResponse(BaseModel):
     severity: Severity | None
     justification: str | None
     embedding_ref: str
+
+
+class ClassifyRequest(BaseModel):
+    text: str
+
+
+class ClassificationResponse(BaseModel):
+    category: Category
+    severity: Severity
+    justification: str
