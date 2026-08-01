@@ -1,0 +1,230 @@
+{
+  "generated_at": "2026-08-01T05:43:38.858598+00:00",
+  "gold_set_path": "C:\\Users\\zaydo\\OneDrive\\Documents\\PythonProjects\\review-manager\\eval\\gold_set.jsonl",
+  "gold_set_examples_evaluated": 100,
+  "metric_definitions": {
+    "overall_accuracy": "Category accuracy across all selected gold reviews.",
+    "severity_accuracy": "Severity accuracy across all selected gold reviews.",
+    "exact_label_accuracy": "Both category and severity are correct.",
+    "invalid_outputs": "Invalid JSON/schema outputs count as incorrect.",
+    "latency": "Per-review inference/API time; model loading is excluded.",
+    "local_cost": "Reported as $0 beyond local compute, as requested."
+  },
+  "summary_table": [
+    {
+      "system": "base_zero_shot",
+      "model": "Qwen/Qwen2.5-1.5B-Instruct",
+      "overall_accuracy": 0.44,
+      "severity_accuracy": 0.32,
+      "exact_label_accuracy": 0.12,
+      "average_latency_seconds": 1.0823857859999406,
+      "estimated_cost_per_1000_reviews_usd": 0.0,
+      "invalid_predictions": 0
+    },
+    {
+      "system": "lora_finetuned",
+      "model": "Qwen/Qwen2.5-1.5B-Instruct + qwen2-5-1-5b-feedback-lens-lora-3ep-v1",
+      "overall_accuracy": 0.72,
+      "severity_accuracy": 0.32,
+      "exact_label_accuracy": 0.19,
+      "average_latency_seconds": 1.3583584880000854,
+      "estimated_cost_per_1000_reviews_usd": 0.0,
+      "invalid_predictions": 0
+    },
+    {
+      "system": "teacher",
+      "model": "claude-sonnet-4-5",
+      "overall_accuracy": 0.73,
+      "severity_accuracy": 0.29,
+      "exact_label_accuracy": 0.17,
+      "average_latency_seconds": 2.36998917000019,
+      "estimated_cost_per_1000_reviews_usd": 2.06967,
+      "invalid_predictions": 0
+    }
+  ],
+  "detailed_results": [
+    {
+      "system": "base_zero_shot",
+      "model": "Qwen/Qwen2.5-1.5B-Instruct",
+      "examples": 100,
+      "valid_predictions": 100,
+      "invalid_predictions": 0,
+      "metrics": {
+        "overall_accuracy": 0.44,
+        "severity_accuracy": 0.32,
+        "exact_label_accuracy": 0.12,
+        "per_category": {
+          "bug": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 16
+          },
+          "feature_request": {
+            "precision": 0.21052631578947367,
+            "recall": 0.8,
+            "f1": 0.3333333333333333,
+            "support": 5
+          },
+          "praise": {
+            "precision": 0.6136363636363636,
+            "recall": 0.84375,
+            "f1": 0.7105263157894737,
+            "support": 32
+          },
+          "churn_risk": {
+            "precision": 0.17857142857142858,
+            "recall": 0.7142857142857143,
+            "f1": 0.2857142857142857,
+            "support": 7
+          },
+          "pricing_complaint": {
+            "precision": 1.0,
+            "recall": 0.2,
+            "f1": 0.33333333333333337,
+            "support": 5
+          },
+          "usability_complaint": {
+            "precision": 0.8571428571428571,
+            "recall": 0.2857142857142857,
+            "f1": 0.42857142857142855,
+            "support": 21
+          },
+          "other": {
+            "precision": 1.0,
+            "recall": 0.07142857142857142,
+            "f1": 0.13333333333333333,
+            "support": 14
+          }
+        }
+      },
+      "average_latency_seconds": 1.0823857859999406,
+      "estimated_cost_per_1000_reviews_usd": 0.0
+    },
+    {
+      "system": "lora_finetuned",
+      "model": "Qwen/Qwen2.5-1.5B-Instruct + qwen2-5-1-5b-feedback-lens-lora-3ep-v1",
+      "examples": 100,
+      "valid_predictions": 100,
+      "invalid_predictions": 0,
+      "metrics": {
+        "overall_accuracy": 0.72,
+        "severity_accuracy": 0.32,
+        "exact_label_accuracy": 0.19,
+        "per_category": {
+          "bug": {
+            "precision": 0.5333333333333333,
+            "recall": 1.0,
+            "f1": 0.6956521739130436,
+            "support": 16
+          },
+          "feature_request": {
+            "precision": 0.6666666666666666,
+            "recall": 0.8,
+            "f1": 0.7272727272727272,
+            "support": 5
+          },
+          "praise": {
+            "precision": 0.9032258064516129,
+            "recall": 0.875,
+            "f1": 0.8888888888888888,
+            "support": 32
+          },
+          "churn_risk": {
+            "precision": 0.4,
+            "recall": 0.2857142857142857,
+            "f1": 0.3333333333333333,
+            "support": 7
+          },
+          "pricing_complaint": {
+            "precision": 1.0,
+            "recall": 0.8,
+            "f1": 0.888888888888889,
+            "support": 5
+          },
+          "usability_complaint": {
+            "precision": 0.7777777777777778,
+            "recall": 0.3333333333333333,
+            "f1": 0.4666666666666666,
+            "support": 21
+          },
+          "other": {
+            "precision": 0.7333333333333333,
+            "recall": 0.7857142857142857,
+            "f1": 0.7586206896551724,
+            "support": 14
+          }
+        }
+      },
+      "average_latency_seconds": 1.3583584880000854,
+      "estimated_cost_per_1000_reviews_usd": 0.0
+    },
+    {
+      "system": "teacher",
+      "model": "claude-sonnet-4-5",
+      "examples": 100,
+      "valid_predictions": 100,
+      "invalid_predictions": 0,
+      "metrics": {
+        "overall_accuracy": 0.73,
+        "severity_accuracy": 0.29,
+        "exact_label_accuracy": 0.17,
+        "per_category": {
+          "bug": {
+            "precision": 0.52,
+            "recall": 0.8125,
+            "f1": 0.6341463414634146,
+            "support": 16
+          },
+          "feature_request": {
+            "precision": 0.5714285714285714,
+            "recall": 0.8,
+            "f1": 0.6666666666666666,
+            "support": 5
+          },
+          "praise": {
+            "precision": 0.9655172413793104,
+            "recall": 0.875,
+            "f1": 0.9180327868852458,
+            "support": 32
+          },
+          "churn_risk": {
+            "precision": 0.6,
+            "recall": 0.42857142857142855,
+            "f1": 0.5,
+            "support": 7
+          },
+          "pricing_complaint": {
+            "precision": 0.8333333333333334,
+            "recall": 1.0,
+            "f1": 0.9090909090909091,
+            "support": 5
+          },
+          "usability_complaint": {
+            "precision": 1.0,
+            "recall": 0.3333333333333333,
+            "f1": 0.5,
+            "support": 21
+          },
+          "other": {
+            "precision": 0.6190476190476191,
+            "recall": 0.9285714285714286,
+            "f1": 0.742857142857143,
+            "support": 14
+          }
+        }
+      },
+      "average_latency_seconds": 2.36998917000019,
+      "estimated_cost_per_1000_reviews_usd": 2.06967,
+      "api_usage": {
+        "input_tokens": 46644,
+        "output_tokens": 4469,
+        "actual_sample_cost_usd": 0.206967,
+        "pricing_per_million_tokens_usd": {
+          "input": 3.0,
+          "output": 15.0
+        }
+      }
+    }
+  ]
+}
