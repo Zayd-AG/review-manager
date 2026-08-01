@@ -32,6 +32,7 @@ class DashboardClusterResponse(BaseModel):
     severity: Severity | None
     count: int = Field(ge=1)
     priority_score: int
+    source_breakdown: dict[str, int]
 
 
 class ClusterDetailResponse(ClusterResponse):

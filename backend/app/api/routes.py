@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.app.db import get_db
@@ -48,6 +48,22 @@ def dashboard(
         key=lambda cluster: cluster.count * SEVERITY_WEIGHTS.get(cluster.severity or "", 1),
         reverse=True,
     )[:limit]
+    cluster_ids = [cluster.id for cluster in ranked]
+    source_rows = db.execute(
+        select(
+            ClusterMember.cluster_id,
+            FeedbackItem.source,
+            func.count(FeedbackItem.id),
+        )
+        .join(FeedbackItem, FeedbackItem.id == ClusterMember.review_id)
+        .where(ClusterMember.cluster_id.in_(cluster_ids))
+        .group_by(ClusterMember.cluster_id, FeedbackItem.source)
+    ).all()
+    source_breakdowns: dict[str, dict[str, int]] = {}
+    for cluster_id, source_name, source_count in source_rows:
+        source_breakdowns.setdefault(str(cluster_id), {})[str(source_name)] = int(
+            source_count
+        )
     return [
         DashboardClusterResponse(
             id=cluster.id,
@@ -57,6 +73,7 @@ def dashboard(
             count=cluster.count,
             priority_score=cluster.count
             * SEVERITY_WEIGHTS.get(cluster.severity or "", 1),
+            source_breakdown=source_breakdowns.get(cluster.id, {}),
         )
         for cluster in ranked
     ]
