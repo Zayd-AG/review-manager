@@ -13,3 +13,5 @@ app-store-scraper
 python-dotenv
 wandb
 anthropic
+pandas
+matplotlib
