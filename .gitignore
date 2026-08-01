@@ -155,6 +155,7 @@ activemq-data/
 .venv
 .uv-cache/
 .uv-python/
+.hf_cache/
 env/
 venv/
 ENV/

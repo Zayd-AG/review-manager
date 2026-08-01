@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: feedbacklens-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: feedbacklens
+      POSTGRES_PASSWORD: localdevpassword
+      POSTGRES_DB: feedbacklens
+    ports:
+      - "5432:5432"
+    volumes:
+      - feedbacklens-pgdata:/var/lib/postgresql/data
+
+volumes:
+  feedbacklens-pgdata:
