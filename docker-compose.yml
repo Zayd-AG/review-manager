@@ -11,6 +11,37 @@ services:
       - "5432:5432"
     volumes:
       - feedbacklens-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feedbacklens -d feedbacklens"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://feedbacklens:localdevpassword@postgres:5432/feedbacklens
+      HF_HOME: /app/.hf_cache
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./finetuning/checkpoints:/app/finetuning/checkpoints:ro
+      - hf-cache:/app/.hf_cache
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
 
 volumes:
   feedbacklens-pgdata:
+  hf-cache:

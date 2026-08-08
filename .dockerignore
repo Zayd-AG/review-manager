@@ -1,0 +1,13 @@
+.env
+.git
+.venv
+.uv-cache
+.uv-python
+.hf_cache
+.npm-cache
+__pycache__
+*.pyc
+data/
+frontend/
+node_modules/
+finetuning/checkpoints/
