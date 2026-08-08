@@ -1,5 +1,7 @@
 """Feedback Lens FastAPI application."""
 
+import os
+
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -14,6 +16,11 @@ from backend.app.db import engine
 
 app = FastAPI(title="Feedback Lens API", version="0.1.0")
 MAX_REQUEST_BODY_BYTES = 64 * 1024
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+]
 
 
 @app.middleware("http")
@@ -40,7 +47,7 @@ async def limit_request_size(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
