@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from backend.app.db import get_db
 from backend.app.models import Cluster, ClusterMember, FeedbackItem
@@ -22,6 +25,9 @@ from backend.app.services.classifier import classifier
 
 router = APIRouter()
 SEVERITY_WEIGHTS = {"high": 3, "medium": 2, "low": 1}
+MODEL_INFERENCE_TIMEOUT_SECONDS = int(
+    os.getenv("MODEL_INFERENCE_TIMEOUT_SECONDS", "60")
+)
 
 
 @router.get("/dashboard", response_model=list[DashboardClusterResponse])
@@ -98,14 +104,23 @@ def cluster_detail(cluster_id: str, db: Session = Depends(get_db)) -> ClusterDet
 
 
 @router.post("/classify", response_model=ClassificationResponse)
-def classify(payload: ClassifyRequest) -> ClassificationResponse:
+async def classify(payload: ClassifyRequest) -> ClassificationResponse:
     if not payload.text.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="text must not be empty",
         )
     try:
-        return ClassificationResponse(**classifier.classify(payload.text))
+        label = await asyncio.wait_for(
+            run_in_threadpool(classifier.classify, payload.text),
+            timeout=MODEL_INFERENCE_TIMEOUT_SECONDS,
+        )
+        return ClassificationResponse(**label)
+    except TimeoutError as error:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Classification exceeded the model-inference timeout",
+        ) from error
     except FileNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)) from error
     except (ValueError, json.JSONDecodeError) as error:

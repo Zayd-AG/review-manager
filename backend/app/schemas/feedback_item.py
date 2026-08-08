@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 Category = Literal[
@@ -36,7 +36,11 @@ class FeedbackItemResponse(BaseModel):
 
 
 class ClassifyRequest(BaseModel):
-    text: str
+    text: str = Field(
+        min_length=1,
+        max_length=10_000,
+        description="Review text to classify (maximum 10,000 characters).",
+    )
 
 
 class ClassificationResponse(BaseModel):
