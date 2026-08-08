@@ -18,7 +18,12 @@ database_url = os.getenv("DATABASE_URL")
 if not database_url:
     raise RuntimeError("DATABASE_URL is required in .env")
 
-engine = create_engine(database_url, pool_pre_ping=True)
+database_connect_timeout = int(os.getenv("DATABASE_CONNECT_TIMEOUT_SECONDS", "5"))
+engine = create_engine(
+    database_url,
+    pool_pre_ping=True,
+    connect_args={"connect_timeout": database_connect_timeout},
+)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
