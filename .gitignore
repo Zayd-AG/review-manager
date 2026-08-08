@@ -157,6 +157,7 @@ activemq-data/
 .npm-cache/
 .uv-python/
 .hf_cache/
+.feedback-lens-local/
 env/
 venv/
 ENV/
