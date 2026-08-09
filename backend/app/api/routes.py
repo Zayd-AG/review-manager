@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -24,6 +26,7 @@ from backend.app.services.classifier import classifier
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 SEVERITY_WEIGHTS = {"high": 3, "medium": 2, "low": 1}
 MODEL_INFERENCE_TIMEOUT_SECONDS = int(
     os.getenv("MODEL_INFERENCE_TIMEOUT_SECONDS", "60")
@@ -111,17 +114,28 @@ async def classify(payload: ClassifyRequest) -> ClassificationResponse:
             detail="text must not be empty",
         )
     try:
+        start_time = time.perf_counter()
         label = await asyncio.wait_for(
             run_in_threadpool(classifier.classify, payload.text),
             timeout=MODEL_INFERENCE_TIMEOUT_SECONDS,
         )
+        logger.info(
+            "classification_complete model=qwen2.5-1.5b-lora latency_ms=%.1f",
+            (time.perf_counter() - start_time) * 1000,
+        )
         return ClassificationResponse(**label)
     except TimeoutError as error:
+        logger.warning(
+            "classification_timeout timeout_seconds=%s",
+            MODEL_INFERENCE_TIMEOUT_SECONDS,
+        )
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail="Classification exceeded the model-inference timeout",
         ) from error
     except FileNotFoundError as error:
+        logger.error("classification_unavailable adapter_missing=true")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)) from error
     except (ValueError, json.JSONDecodeError) as error:
+        logger.warning("classification_invalid_output error_type=%s", type(error).__name__)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error

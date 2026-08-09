@@ -1,6 +1,8 @@
 """Feedback Lens FastAPI application."""
 
 import os
+import logging
+import time
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,8 +14,11 @@ from starlette.responses import Response
 
 from backend.app.api import router
 from backend.app.db import engine
+from backend.app.logging_config import configure_logging
 
 
+configure_logging()
+logger = logging.getLogger(__name__)
 app = FastAPI(title="Feedback Lens API", version="0.1.0")
 MAX_REQUEST_BODY_BYTES = 64 * 1024
 cors_origins = [
@@ -45,6 +50,26 @@ async def limit_request_size(
     return await call_next(request)
 
 
+@app.middleware("http")
+async def log_request(request: Request, call_next: RequestResponseEndpoint) -> Response:
+    """Log method, route, status, and latency without logging request contents."""
+    start_time = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("api_error method=%s path=%s", request.method, request.url.path)
+        raise
+    latency_ms = (time.perf_counter() - start_time) * 1000
+    logger.info(
+        "api_request method=%s path=%s status=%s latency_ms=%.1f",
+        request.method,
+        request.url.path,
+        response.status_code,
+        latency_ms,
+    )
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -68,6 +93,7 @@ def ready() -> dict[str, str]:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
     except SQLAlchemyError as error:
+        logger.warning("readiness_failed database_unavailable=true")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database is unavailable",
