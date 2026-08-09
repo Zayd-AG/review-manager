@@ -29,10 +29,16 @@ CREATE TABLE IF NOT EXISTS clusters (
     similarity_threshold REAL NOT NULL,
     representative_review_id TEXT NOT NULL REFERENCES reviews(id),
     representative_text TEXT NOT NULL,
+    category VARCHAR(64),
+    severity VARCHAR(16),
     review_count INTEGER NOT NULL,
     review_ids JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE clusters
+    ADD COLUMN IF NOT EXISTS category VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS severity VARCHAR(16);
 
 CREATE TABLE IF NOT EXISTS cluster_members (
     cluster_id TEXT NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
@@ -173,6 +179,17 @@ def replace_clusters(
                 cursor,
                 "INSERT INTO cluster_members (cluster_id, review_id) VALUES %s",
                 member_rows,
+            )
+            cursor.execute(
+                """
+                UPDATE clusters AS cluster
+                SET category = review.category,
+                    severity = review.severity
+                FROM reviews AS review
+                WHERE cluster.representative_review_id = review.id
+                  AND cluster.similarity_threshold = %s
+                """,
+                (threshold,),
             )
     connection.commit()
 

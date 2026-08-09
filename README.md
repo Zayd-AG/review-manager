@@ -81,6 +81,25 @@ npm run build
 GitHub Actions runs the same backend tests with a temporary pgvector Postgres
 service and verifies the frontend production build on each push and pull request.
 
+## Run the local pipeline
+
+The orchestrator runs the safe local rebuild path (normalize, embed, cluster)
+and writes an ignored JSON run report under `data/processed/pipeline_runs/`:
+
+```powershell
+python pipeline/run_pipeline.py
+```
+
+Preview any command before it changes data, calls a paid API, or scrapes:
+
+```powershell
+python pipeline/run_pipeline.py --google-packages com.discord --scrape-limit 20 --dry-run
+```
+
+The orchestrator refuses to run more than 20 scraped reviews per app or more
+than 20 paid labels without an explicit confirmation flag. Full teacher labeling
+also requires using `labeling/teacher_labeler.py --estimate-only` first.
+
 ## Known limitations
 
 - This is a local portfolio demo, not a deployed multi-user service.

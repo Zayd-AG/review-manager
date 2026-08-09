@@ -1,7 +1,10 @@
-"""Dry-run teacher labeling for the first 10 normalized reviews.
+"""Teacher-label normalized reviews with safe sample and full-dataset modes.
 
-Run from the project root after setting ANTHROPIC_API_KEY in feedback-lens/.env:
+Run a 10-review paid sample from the project root:
     python labeling/teacher_labeler.py
+
+Run the full dataset only after reviewing cost and explicitly confirming:
+    python labeling/teacher_labeler.py --full --confirm-paid-full-dataset
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "reviews_normalized.jsonl"
 OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "pseudo_labels.jsonl"
 DRY_RUN_LIMIT = 10
+MAX_UNCONFIRMED_LABELS = 20
 BATCH_SIZE = 50
 MAX_RETRIES = 3
 CHARS_PER_TOKEN_ESTIMATE = 4
@@ -41,6 +45,22 @@ def parse_args() -> argparse.Namespace:
         "--estimate-only",
         action="store_true",
         help="Estimate full-dataset tokens and cost without calling the API.",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=DRY_RUN_LIMIT,
+        help="Maximum pending reviews to label (default: 10).",
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Label every remaining review; requires --confirm-paid-full-dataset.",
+    )
+    parser.add_argument(
+        "--confirm-paid-full-dataset",
+        action="store_true",
+        help="Explicitly approve a full paid teacher-labeling run.",
     )
     return parser.parse_args()
 
@@ -211,12 +231,16 @@ def label_review(
     raise RuntimeError("Unreachable retry state")
 
 
-def label_full_dataset(client: anthropic.Anthropic, model: str) -> None:
+def label_dataset(
+    client: anthropic.Anthropic, model: str, limit: int | None
+) -> None:
     all_reviews = load_reviews(INPUT_PATH)
     completed_ids = load_completed_ids(OUTPUT_PATH)
     pending_reviews = [
         review for review in all_reviews if str(review.get("id", "")) not in completed_ids
     ]
+    if limit is not None:
+        pending_reviews = pending_reviews[:limit]
 
     print(
         f"Starting with {len(completed_ids)} saved labels; "
@@ -260,6 +284,22 @@ def main() -> None:
     if args.estimate_only:
         print_cost_estimate(model)
         return
+    if args.limit < 1:
+        raise ValueError("--limit must be at least 1")
+    if args.full and not args.confirm_paid_full_dataset:
+        raise RuntimeError(
+            "Full paid labeling requires --confirm-paid-full-dataset. "
+            "Run --estimate-only first to review expected cost."
+        )
+    if args.full:
+        label_limit: int | None = None
+    else:
+        label_limit = args.limit
+        if label_limit > MAX_UNCONFIRMED_LABELS:
+            raise RuntimeError(
+                f"Labeling more than {MAX_UNCONFIRMED_LABELS} reviews requires "
+                "--full --confirm-paid-full-dataset."
+            )
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -268,7 +308,7 @@ def main() -> None:
         )
 
     client = anthropic.Anthropic(api_key=api_key)
-    label_full_dataset(client, model)
+    label_dataset(client, model, label_limit)
 
 
 if __name__ == "__main__":
