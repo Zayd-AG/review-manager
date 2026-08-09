@@ -35,5 +35,20 @@ class DashboardClusterResponse(BaseModel):
     source_breakdown: dict[str, int]
 
 
+class EvaluationSnapshotResponse(BaseModel):
+    gold_set_reviews: int
+    base_category_accuracy: float
+    lora_category_accuracy: float
+    teacher_category_accuracy: float
+
+
+class DashboardSummaryResponse(BaseModel):
+    review_count: int
+    cluster_count: int
+    classifier_name: str
+    embedding_model: str
+    evaluation: EvaluationSnapshotResponse
+
+
 class ClusterDetailResponse(ClusterResponse):
     source_reviews: list[FeedbackItemResponse]

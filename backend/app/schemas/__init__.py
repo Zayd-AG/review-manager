@@ -1,6 +1,11 @@
 """Pydantic schemas exposed by the backend."""
 
-from .cluster import ClusterDetailResponse, ClusterResponse, DashboardClusterResponse
+from .cluster import (
+    ClusterDetailResponse,
+    ClusterResponse,
+    DashboardClusterResponse,
+    DashboardSummaryResponse,
+)
 from .feedback_item import (
     ClassificationResponse,
     ClassifyRequest,
@@ -13,5 +18,6 @@ __all__ = [
     "ClusterDetailResponse",
     "ClusterResponse",
     "DashboardClusterResponse",
+    "DashboardSummaryResponse",
     "FeedbackItemResponse",
 ]

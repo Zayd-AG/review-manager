@@ -1,6 +1,41 @@
 # Feedback Lens
 
-ML pipeline for ingesting, labeling, and analyzing product reviews.
+An end-to-end local ML system for turning mobile-app reviews into prioritized
+product insights.
+
+## What it does
+
+- Collects iOS App Store and Google Play reviews, then normalizes them into one schema.
+- Uses a teacher model to pseudo-label review category and severity.
+- Fine-tunes Qwen2.5-1.5B-Instruct with LoRA for local review classification.
+- Evaluates base Qwen, the LoRA adapter, and the teacher against a human-labeled gold set.
+- Embeds reviews with Sentence Transformers, clusters repeated feedback with pgvector, and ranks clusters by frequency and severity.
+- Serves the insights through FastAPI and a React dashboard with live local classification.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[iOS and Google Play reviews] --> B[Normalize reviews]
+    B --> C[Teacher pseudo-labels]
+    C --> D[LoRA fine-tuning and evaluation]
+    B --> E[Sentence embeddings]
+    E --> F[Postgres + pgvector]
+    F --> G[Similarity clusters]
+    G --> H[FastAPI]
+    D --> H
+    H --> I[React dashboard]
+```
+
+## Current demo snapshot
+
+- 2,399 normalized mobile-app reviews
+- 73 similarity clusters at cosine similarity >= 0.85
+- 100 manually labeled gold-set reviews
+- Category accuracy on the gold set: base Qwen **44%**, LoRA-tuned Qwen **72%**, teacher model **73%**
+
+The dashboard displays current database counts; the evaluation metrics above are
+the recorded 100-review comparison run.
 
 ## Run locally with Docker
 
@@ -26,3 +61,29 @@ Stop the stack with:
 ```powershell
 docker compose down
 ```
+
+## Verify a local run
+
+With the stack running, check the API and dashboard data routes:
+
+```powershell
+python backend/scripts/smoke_test.py
+```
+
+Run the local automated checks:
+
+```powershell
+python -m unittest discover -s tests -v
+cd frontend
+npm run build
+```
+
+GitHub Actions runs the same backend tests with a temporary pgvector Postgres
+service and verifies the frontend production build on each push and pull request.
+
+## Known limitations
+
+- This is a local portfolio demo, not a deployed multi-user service.
+- Most training labels are teacher-generated; the gold set is currently 100 human-labeled reviews.
+- The dashboard's cluster label is inherited from its representative review.
+- Scrapers and the local model depend on the availability and terms of their external providers.

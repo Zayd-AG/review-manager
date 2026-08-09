@@ -20,6 +20,7 @@ from backend.app.schemas import (
     ClassifyRequest,
     ClusterDetailResponse,
     DashboardClusterResponse,
+    DashboardSummaryResponse,
     FeedbackItemResponse,
 )
 from backend.app.services.classifier import classifier
@@ -31,6 +32,25 @@ SEVERITY_WEIGHTS = {"high": 3, "medium": 2, "low": 1}
 MODEL_INFERENCE_TIMEOUT_SECONDS = int(
     os.getenv("MODEL_INFERENCE_TIMEOUT_SECONDS", "60")
 )
+
+
+@router.get("/summary", response_model=DashboardSummaryResponse)
+def dashboard_summary(db: Session = Depends(get_db)) -> DashboardSummaryResponse:
+    """Return live dataset counts and the recorded evaluation snapshot."""
+    review_count = int(db.scalar(select(func.count(FeedbackItem.id))) or 0)
+    cluster_count = int(db.scalar(select(func.count(Cluster.id))) or 0)
+    return DashboardSummaryResponse(
+        review_count=review_count,
+        cluster_count=cluster_count,
+        classifier_name="Qwen2.5-1.5B-Instruct + LoRA",
+        embedding_model="all-MiniLM-L6-v2 (384 dimensions)",
+        evaluation={
+            "gold_set_reviews": 100,
+            "base_category_accuracy": 0.44,
+            "lora_category_accuracy": 0.72,
+            "teacher_category_accuracy": 0.73,
+        },
+    )
 
 
 @router.get("/dashboard", response_model=list[DashboardClusterResponse])
