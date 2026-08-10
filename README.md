@@ -42,7 +42,9 @@ the recorded 100-review comparison run.
 The LoRA adapter improved category accuracy from 44% for zero-shot Qwen to 72%
 on the manually labeled gold set, while keeping inference local and cost-free.
 
-![Evaluation comparison across the base model, LoRA adapter, and teacher model, generated with pandas and Matplotlib.](eval/results/comparison_readme.png)
+Evaluation comparison across the base model, LoRA adapter, and teacher model generated with Matplotlib and pandas:
+
+![Evaluation comparison across the base model, LoRA adapter, and teacher model.](eval/results/comparison_readme.png)
 
 ## Run locally with Docker
 

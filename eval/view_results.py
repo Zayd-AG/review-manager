@@ -22,6 +22,11 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = PROJECT_ROOT / "eval" / "results"
 COLORS = ("#7c3aed", "#0891b2", "#ea580c")
+SYSTEM_DISPLAY_NAMES = {
+    "base_zero_shot": "Qwen2.5-1.5B-Instruct (base)",
+    "lora_finetuned": "Qwen2.5-1.5B-Instruct + LoRA",
+    "teacher": "Claude Sonnet 4.5",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -60,7 +65,7 @@ def build_summary_table(comparison: dict[str, Any]) -> pd.DataFrame:
     for result in comparison["summary_table"]:
         rows.append(
             {
-                "System": result["system"],
+                "System": SYSTEM_DISPLAY_NAMES.get(result["system"], result["system"]),
                 "Category Accuracy": float(result["overall_accuracy"]) * 100,
                 "Severity Accuracy": float(result["severity_accuracy"]) * 100,
                 "Exact Accuracy": float(result["exact_label_accuracy"]) * 100,
@@ -113,7 +118,9 @@ def create_dashboard(
     summary: pd.DataFrame, review_count: Any, output_path: Path
 ) -> None:
     figure = plt.figure(figsize=(15, 14), constrained_layout=True)
-    grid = figure.add_gridspec(3, 1, height_ratios=(0.75, 1.15, 1.05))
+    grid = figure.add_gridspec(
+        3, 1, height_ratios=(0.75, 1.05, 1.05), hspace=0.16
+    )
     table_axis = figure.add_subplot(grid[0, 0])
     accuracy_axis = figure.add_subplot(grid[1, 0])
     latency_axis = figure.add_subplot(grid[2, 0])
@@ -141,6 +148,7 @@ def create_dashboard(
         cellText=cell_text,
         colLabels=column_labels,
         cellLoc="center",
+        colWidths=[0.24, 0.126, 0.126, 0.126, 0.126, 0.126, 0.126],
         loc="center",
     )
     rendered_table.auto_set_font_size(False)
@@ -174,7 +182,7 @@ def create_dashboard(
     accuracy_axis.set_title("Accuracy comparison")
     accuracy_axis.set_ylabel("Accuracy (%)")
     accuracy_axis.set_ylim(0, 110)
-    accuracy_axis.set_xticks(positions, systems, rotation=12, ha="right")
+    accuracy_axis.set_xticks(positions, systems, rotation=0)
     accuracy_axis.legend(frameon=False)
     accuracy_axis.grid(axis="y", alpha=0.25)
 
@@ -186,7 +194,7 @@ def create_dashboard(
     label_bars(latency_axis, latency_bars, " ms")
     latency_axis.set_title("Average latency per review")
     latency_axis.set_ylabel("Milliseconds")
-    latency_axis.tick_params(axis="x", rotation=12)
+    latency_axis.tick_params(axis="x", rotation=0)
     latency_axis.grid(axis="y", alpha=0.25)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

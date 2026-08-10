@@ -55,10 +55,19 @@ LOCAL_MAX_NEW_TOKENS = 160
 TEACHER_MAX_TOKENS = 256
 MAX_RETRIES = 3
 PAID_SAMPLE_CAP = 20
+SYSTEM_DISPLAY_NAMES = {
+    "base_zero_shot": "Qwen2.5-1.5B-Instruct (base)",
+    "lora_finetuned": "Qwen2.5-1.5B-Instruct + LoRA",
+    "teacher": "Claude Sonnet 4.5",
+}
 
 ANTHROPIC_PRICING_PER_MILLION = {
     "claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
 }
+
+
+def display_system_name(system_name: str) -> str:
+    return SYSTEM_DISPLAY_NAMES.get(system_name, system_name)
 
 
 def parse_args() -> argparse.Namespace:
@@ -358,12 +367,15 @@ def evaluate_predictions(
         except ValueError as error:
             prediction = None
             invalid_outputs += 1
-            print(f"{system_name} {index}/{len(examples)}: invalid output ({error})")
+            print(
+                f"{display_system_name(system_name)} {index}/{len(examples)}: "
+                f"invalid output ({error})"
+            )
         synchronize_cuda()
         latencies.append(time.perf_counter() - started)
         predictions.append(prediction)
         if index % 10 == 0 or index == len(examples):
-            print(f"{system_name}: processed {index}/{len(examples)}")
+            print(f"{display_system_name(system_name)}: processed {index}/{len(examples)}")
 
     return {
         "system": system_name,
@@ -380,7 +392,7 @@ def evaluate_predictions(
 def evaluate_local(
     system_name: str, examples: list[dict[str, str]], with_adapter: bool
 ) -> dict[str, Any]:
-    print(f"\nLoading {system_name}...")
+    print(f"\nLoading {display_system_name(system_name)}...")
     model, tokenizer = load_local_model(with_adapter=with_adapter)
     try:
         return evaluate_predictions(
@@ -466,7 +478,7 @@ def print_results(results: list[dict[str, Any]]) -> None:
         metrics = result["metrics"]
         summary_rows.append(
             [
-                result["system"],
+                display_system_name(result["system"]),
                 f"{metrics['overall_accuracy']:.3f}",
                 f"{metrics['severity_accuracy']:.3f}",
                 f"{metrics['exact_label_accuracy']:.3f}",
@@ -496,7 +508,7 @@ def print_results(results: list[dict[str, Any]]) -> None:
                     str(values["support"]),
                 ]
             )
-        print(f"\nPer-category metrics: {result['system']}")
+        print(f"\nPer-category metrics: {display_system_name(result['system'])}")
         print(format_table(["Category", "Precision", "Recall", "F1", "Support"], category_rows))
 
 
