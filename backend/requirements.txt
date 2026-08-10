@@ -1,9 +1,3 @@
-# Runtime dependencies for the Dockerized API only.
-#
-# Scraping, teacher labeling, and training dependencies intentionally remain in
-# the repository-level requirements.txt: the API does not import them.  Keeping
-# this list separate avoids a resolver conflict between app-store-scraper
-# (which pins requests==2.23.0) and TRL's datasets dependency (requests>=2.32.2).
 fastapi
 uvicorn
 sqlalchemy

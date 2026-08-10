@@ -13,7 +13,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-# This script writes a PNG and must not depend on Tk being installed.
 os.environ.setdefault("MPLBACKEND", "Agg")
 
 import matplotlib.pyplot as plt

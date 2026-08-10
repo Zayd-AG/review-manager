@@ -1,17 +1,4 @@
-"""Run Feedback Lens stages with visible progress and safe paid/scrape guards.
-
-Examples:
-    # Rebuild local normalized data, embeddings, and clusters.
-    python pipeline/run_pipeline.py
-
-    # Preview a 20-review source sample without scraping anything.
-    python pipeline/run_pipeline.py --google-packages com.discord --scrape-limit 20 --dry-run
-
-    # Run a reviewed paid sample, then rebuild local database stages.
-    python pipeline/run_pipeline.py --stages label normalize embed cluster --label-limit 10
-
-    # Full scrapes and full teacher labeling always require separate explicit flags.
-"""
+"""Run Feedback Lens stages with safe paid and scrape guards."""
 
 from __future__ import annotations
 

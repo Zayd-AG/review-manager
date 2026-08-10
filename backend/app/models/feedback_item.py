@@ -36,12 +36,10 @@ class FeedbackItem(Base):
     rating: Mapped[int | None] = mapped_column(Integer)
     date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # Labels are nullable until pseudo-labels or human labels are imported.
     category: Mapped[str | None] = mapped_column(String(64))
     severity: Mapped[str | None] = mapped_column(String(16))
     justification: Mapped[str | None] = mapped_column(Text)
 
-    # Deferred keeps the large vector out of normal API reads.
     embedding: Mapped[Any | None] = deferred(mapped_column(Vector(384)))
 
     @property

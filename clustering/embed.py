@@ -25,14 +25,11 @@ INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "reviews_normalized.jsonl"
 DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DIMENSIONS = 384
 
-# Load this before sentence-transformers imports huggingface_hub. Keeping the
-# cache in the project avoids Windows user-cache permission problems.
 load_dotenv(PROJECT_ROOT / ".env")
 os.environ.setdefault("HF_HOME", str(PROJECT_ROOT / ".hf_cache"))
 
 from sentence_transformers import SentenceTransformer
 
-# Kept here so the SQL is visible and reusable even before a database exists.
 REVIEWS_SCHEMA_SQL = f"""
 CREATE EXTENSION IF NOT EXISTS vector;
 

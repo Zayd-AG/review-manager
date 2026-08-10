@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import unittest
 
-# Lets health and request-validation tests run even when Postgres is not local.
 os.environ.setdefault(
     "DATABASE_URL", "postgresql://feedbacklens:localdevpassword@localhost:5432/feedbacklens"
 )

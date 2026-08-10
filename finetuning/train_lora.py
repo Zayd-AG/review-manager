@@ -164,7 +164,6 @@ def main() -> None:
         )
         trainer.train()
 
-        # load_best_model_at_end leaves the best epoch's adapter in memory.
         trainer.save_model(str(ADAPTER_OUTPUT_DIR))
         tokenizer.save_pretrained(ADAPTER_OUTPUT_DIR)
 

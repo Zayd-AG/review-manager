@@ -1,15 +1,4 @@
-"""Compare the base model, LoRA adapter, and teacher on the human gold set.
-
-Examples:
-    # Required paid-API sample (all three systems, first 10 reviews)
-    python eval/run_eval.py --limit 10
-
-    # Full comparison after reviewing the sample output
-    python eval/run_eval.py --confirm-paid-teacher
-
-    # Run only the free local systems
-    python eval/run_eval.py --systems base lora
-"""
+"""Compare the base model, LoRA adapter, and teacher on the human gold set."""
 
 from __future__ import annotations
 
@@ -30,9 +19,6 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(PROJECT_ROOT / ".env")
 
-# huggingface_hub reads these settings while it is imported. Load .env first,
-# and default to the same local cache used by the training commands so Windows
-# does not download a second copy under the OneDrive-backed user cache.
 if local_app_data := os.getenv("LOCALAPPDATA"):
     os.environ.setdefault("HF_HOME", str(Path(local_app_data) / "huggingface"))
 
@@ -70,8 +56,6 @@ TEACHER_MAX_TOKENS = 256
 MAX_RETRIES = 3
 PAID_SAMPLE_CAP = 20
 
-# Standard API prices in USD per million tokens. Claude Sonnet 4.5 uses the
-# same $3 input / $15 output pricing as Claude Sonnet 4.
 ANTHROPIC_PRICING_PER_MILLION = {
     "claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
 }

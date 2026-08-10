@@ -55,8 +55,6 @@ def serialize_review(review: dict[str, Any], app_name: str) -> dict[str, str | i
 def fetch_reviews(package_name: str, limit: int) -> list[dict[str, str | int]]:
     """Return no more than limit newest reviews for one package."""
     collected_reviews: list[dict[str, str | int]] = []
-    # The package's type hints say this argument is required even though the
-    # first request must pass None. Keep it Any at this library boundary.
     continuation_token: Any = None
     page = 1
 

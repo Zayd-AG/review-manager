@@ -1,11 +1,7 @@
-# CUDA-enabled variant for local NVIDIA GPU inference.
-# Docker Desktop supplies the host GPU driver; this image supplies the matching
-# CUDA-enabled PyTorch wheel.
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Triton compiles a small CUDA helper on the first GPU inference.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
