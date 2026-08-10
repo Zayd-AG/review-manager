@@ -20,7 +20,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: backend/Dockerfile.gpu
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,6 +30,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
     ports:
       - "8000:8000"
+    gpus: all
     volumes:
       - ./finetuning/checkpoints:/app/finetuning/checkpoints:ro
       - hf-cache:/app/.hf_cache

@@ -1,9 +1,13 @@
+# CUDA-enabled variant for local NVIDIA GPU inference.
+# Docker Desktop supplies the host GPU driver; this image supplies the matching
+# CUDA-enabled PyTorch wheel.
 FROM python:3.11-slim
 
 WORKDIR /app
 
 COPY backend/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu130 torch==2.13.0 \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY backend ./backend
 COPY finetuning/prepare_dataset.py ./finetuning/prepare_dataset.py

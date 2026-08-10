@@ -56,6 +56,18 @@ live `/classify` demo uses the local LoRA adapter mounted from
 empty. The base model downloads on its first classification request and is
 cached in the named `hf-cache` Docker volume.
 
+### GPU-backed live classification
+
+The default Compose setup uses the RTX 5070 Ti through CUDA-enabled PyTorch.
+Verify GPU access after the stack starts:
+
+```powershell
+docker compose exec backend python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+```
+
+It should print `True` and `NVIDIA GeForce RTX 5070 Ti`. The first request still
+downloads and loads the base model; later requests use the loaded GPU model.
+
 Stop the stack with:
 
 ```powershell
