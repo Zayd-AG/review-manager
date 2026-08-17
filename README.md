@@ -1,16 +1,17 @@
 # Feedback Lens
 
-An end-to-end local ML system for turning mobile-app reviews into prioritized
-product insights.
+Feedback Lens is an end-to-end machine learning system that turns iOS App Store and Google Play reviews into prioritized product insights. The project is deployed on AWS and also includes a local Docker workflow for running the full stack with GPU-backed inference.
 
 ## What it does
 
-- Collects iOS App Store and Google Play reviews, then normalizes them into one schema.
+- Collects iOS App Store and Google Play reviews and normalizes them into one schema.
 - Uses a teacher model to pseudo-label review category and severity.
-- Fine-tunes Qwen2.5-1.5B-Instruct with LoRA for local review classification.
-- Evaluates base Qwen, the LoRA adapter, and the teacher against a human-labeled gold set.
-- Embeds reviews with Sentence Transformers, clusters repeated feedback with pgvector, and ranks clusters by frequency and severity.
-- Serves the insights through FastAPI and a React dashboard with live local classification.
+- Fine-tunes Qwen2.5-1.5B-Instruct with LoRA and PyTorch for review classification.
+- Evaluates the base Qwen model, LoRA adapter, and teacher against a manually labeled gold set.
+- Embeds reviews with Sentence Transformers and clusters recurring feedback with PostgreSQL and pgvector.
+- Ranks recurring issues using frequency and severity.
+- Serves results through FastAPI and a React + TypeScript dashboard with live GPU-backed classification.
+- Generates optional evidence-backed product action plans with the Anthropic API.
 
 ## Architecture
 
@@ -18,68 +19,58 @@ product insights.
 flowchart LR
     A[iOS and Google Play reviews] --> B[Normalize reviews]
     B --> C[Teacher pseudo-labels]
-    C --> D[LoRA fine-tuning and evaluation]
-    B --> E[Sentence embeddings]
-    E --> F[Postgres + pgvector]
+    C --> D[Qwen2.5 LoRA fine-tuning]
+    B --> E[Sentence Transformer embeddings]
+    E --> F[PostgreSQL + pgvector]
     F --> G[Similarity clusters]
     G --> H[FastAPI]
     D --> H
-    H --> I[React dashboard]
+    H --> I[React + TypeScript dashboard]
+    G --> J[Anthropic action plans]
+    J --> H
 ```
 
-## Current demo snapshot
+## Results
 
-- 2,400 normalized mobile-app reviews
-- 73 similarity clusters at cosine similarity >= 0.85
-- 100 manually labeled gold-set reviews
-- Category accuracy on the gold set: base Qwen **44%**, LoRA-tuned Qwen **72%**, teacher model **73%**
-
-The dashboard displays current database counts; the evaluation metrics above are
-the recorded 100-review comparison run.
-
-## Evaluation results
-
-The LoRA adapter improved category accuracy from 44% for zero-shot Qwen to 72%
-on the manually labeled gold set, while keeping inference local and cost-free.
-
-Evaluation comparison across the base model, LoRA adapter, and teacher model generated with Matplotlib and pandas:
+- **2,400** normalized mobile-app reviews
+- **73** similarity clusters at cosine similarity >= 0.85
+- **100** manually labeled gold-set reviews
+- Base Qwen category accuracy: **44%**
+- LoRA-tuned Qwen category accuracy: **72%**
+- Teacher-model category accuracy: **73%**
+- The LoRA adapter improved classification accuracy by approximately **63% relative to the base model** on the manually labeled evaluation set.
 
 ![Evaluation comparison across the base model, LoRA adapter, and teacher model.](eval/results/comparison_readme.png)
 
+## Dashboard workflow
+
+From the dashboard, users can search for an app, import reviews, classify them with the fine-tuned model, inspect recurring feedback clusters, and generate prioritized action plans. Imported reviews are embedded, stored in PostgreSQL, and included in a refreshed clustering run.
+
+The optional Anthropic action-plan workflow sends a compact summary of matching clusters and asks Claude to produce concrete recommendations grounded in the detected feedback.
+
+## Deployment
+
+Feedback Lens is deployed on **AWS**. The repository also preserves a local Docker workflow so the ML pipeline, database, API, frontend, and GPU inference path can be reproduced independently.
+
 ## Run locally with Docker
 
-> **Hardware requirement:** This is a local, NVIDIA GPU-backed demo. The default
-> Docker configuration requires an NVIDIA GPU with CUDA support and Docker
-> Desktop GPU integration. It is configured and tested on an RTX 5070 Ti.
+> **Hardware requirement:** Live local classification requires an NVIDIA CUDA-capable GPU. The local configuration is tested on an RTX 5070 Ti.
 
-With Docker Desktop running, start PostgreSQL (with pgvector), the FastAPI API,
-and the React demo together:
+With Docker Desktop running, start PostgreSQL with pgvector, the FastAPI backend, and the React frontend:
 
 ```powershell
 docker compose up --build
 ```
 
-Open the demo at http://localhost:5173. The API is available at
-http://localhost:8000 and its interactive documentation is at
-http://localhost:8000/docs.
+Open the dashboard at `http://localhost:5173`. The API is available at `http://localhost:8000`, with interactive documentation at `http://localhost:8000/docs`.
 
-The API container connects to the Compose Postgres service automatically. The
-live `/classify` demo uses the local LoRA adapter mounted from
-`finetuning/checkpoints/`; run the fine-tuning step first if that directory is
-empty. The base model downloads on its first classification request and is
-cached in the named `hf-cache` Docker volume.
+The live `/classify` endpoint uses the LoRA adapter mounted from `finetuning/checkpoints/`. The base model is downloaded on first use and cached in the `hf-cache` Docker volume.
 
-### GPU-backed live classification
-
-The default Compose setup uses the RTX 5070 Ti through CUDA-enabled PyTorch.
-Verify GPU access after the stack starts:
+Verify GPU access with:
 
 ```powershell
 docker compose exec backend python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
 ```
-
-It should print `True` and `NVIDIA GeForce RTX 5070 Ti`. The first request still
-downloads and loads the base model; later requests use the loaded GPU model.
 
 Stop the stack with:
 
@@ -87,27 +78,15 @@ Stop the stack with:
 docker compose down
 ```
 
-## Import reviews from the dashboard
+## Verification and CI
 
-Use **Import app reviews** to search Google Play or the App Store, select an app,
-and import a small batch. Imports are capped at 20 reviews: each review is
-scraped, labeled by the local LoRA model, embedded, saved to PostgreSQL, and
-included in a refreshed clustering run. When the import completes, generate a
-local action plan from the labeled feedback.
-
-The optional **Use Claude for action plan** button sends only a summary of up to
-10 matching clusters to Anthropic. It requires `ANTHROPIC_API_KEY` in `.env` and
-your explicit click; no Anthropic request is made by default.
-
-## Verify a local run
-
-With the stack running, check the API and dashboard data routes:
+With the stack running:
 
 ```powershell
 python backend/scripts/smoke_test.py
 ```
 
-Run the local automated checks:
+Run the automated checks:
 
 ```powershell
 python -m unittest discover -s tests -v
@@ -115,36 +94,25 @@ cd frontend
 npm run build
 ```
 
-GitHub Actions runs the same backend tests with a temporary pgvector Postgres
-service and verifies the frontend production build on each push and pull request.
+GitHub Actions runs backend tests against a temporary pgvector PostgreSQL service and verifies the frontend production build on pushes and pull requests.
 
-## Run the local pipeline
+## Run the ML pipeline
 
-The orchestrator runs the safe local rebuild path (normalize, embed, cluster)
-and writes an ignored JSON run report under `data/processed/pipeline_runs/`:
+The orchestrator runs the local normalize, embed, and cluster path and writes a JSON run report under `data/processed/pipeline_runs/`:
 
 ```powershell
 python pipeline/run_pipeline.py
 ```
 
-Preview any command before it changes data, calls a paid API, or scrapes:
+A dry run can preview operations before scraping, changing data, or calling a paid API:
 
 ```powershell
 python pipeline/run_pipeline.py --google-packages com.discord --scrape-limit 20 --dry-run
 ```
 
-The orchestrator refuses to run more than 20 scraped reviews per app or more
-than 20 paid labels without an explicit confirmation flag. Full teacher labeling
-also requires using `labeling/teacher_labeler.py --estimate-only` first.
+## Limitations
 
-## Known limitations
-
-- This is a local portfolio demo, not a deployed multi-user service.
-<<<<<<< HEAD
-- The default Docker configuration requires an NVIDIA CUDA-capable GPU for live classification.
-- Most training labels are teacher-generated; the gold set is currently 100 human-labeled reviews.
-=======
-- Most training labels are teacher-generated;
->>>>>>> c602267f18fb21978ff4887d4ff293674e136a47
+- Most training labels are teacher-generated; the evaluation gold set contains 100 manually labeled reviews.
+- Local live classification requires an NVIDIA CUDA-capable GPU.
 - The dashboard's cluster label is inherited from its representative review.
-- Scrapers and the local model depend on the availability and terms of their external providers.
+- Scrapers and model integrations depend on the availability and terms of their external providers.
