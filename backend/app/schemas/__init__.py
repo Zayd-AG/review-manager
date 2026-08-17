@@ -7,12 +7,20 @@ from .cluster import (
     DashboardSummaryResponse,
 )
 from .feedback_item import (
+    AppSearchResult,
     ClassificationResponse,
     ClassifyRequest,
     FeedbackItemResponse,
+    ImportJobResponse,
+    ImportPreviewRequest,
+    ImportRequest,
+    ImportReview,
+    RecommendationRequest,
+    RecommendationResponse,
 )
 
 __all__ = [
+    "AppSearchResult",
     "ClassificationResponse",
     "ClassifyRequest",
     "ClusterDetailResponse",
@@ -20,4 +28,10 @@ __all__ = [
     "DashboardClusterResponse",
     "DashboardSummaryResponse",
     "FeedbackItemResponse",
+    "ImportJobResponse",
+    "ImportPreviewRequest",
+    "ImportRequest",
+    "ImportReview",
+    "RecommendationRequest",
+    "RecommendationResponse",
 ]

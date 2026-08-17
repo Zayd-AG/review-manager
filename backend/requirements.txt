@@ -7,3 +7,6 @@ torch
 transformers
 peft
 accelerate
+google-play-scraper
+sentence-transformers
+anthropic

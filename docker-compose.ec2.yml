@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-feedbacklens}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-feedbacklens}
+    volumes:
+      - feedbacklens-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.gpu
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-feedbacklens}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-feedbacklens}
+      PROJECT_ROOT: /app
+      HF_HOME: /app/.hf_cache
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      MODEL_INFERENCE_TIMEOUT_SECONDS: ${MODEL_INFERENCE_TIMEOUT_SECONDS:-120}
+    gpus: all
+    volumes:
+      - ./finetuning/checkpoints:/app/finetuning/checkpoints:ro
+      - ./data/processed:/app/data/processed:ro
+      - hf-cache:/app/.hf_cache
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.production
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  feedbacklens-pgdata:
+  hf-cache:

@@ -7,8 +7,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu130 torch==2.13.0 \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend ./backend
 COPY finetuning/prepare_dataset.py ./finetuning/prepare_dataset.py

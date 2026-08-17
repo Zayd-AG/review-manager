@@ -218,6 +218,8 @@ finetuning/checkpoints/
 *.pt
 *.safetensors
 node_modules/
+dist/
+.env.ec2
 
 # Ruff stuff:
 .ruff_cache/

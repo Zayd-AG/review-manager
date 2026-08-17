@@ -48,6 +48,10 @@ Evaluation comparison across the base model, LoRA adapter, and teacher model gen
 
 ## Run locally with Docker
 
+> **Hardware requirement:** This is a local, NVIDIA GPU-backed demo. The default
+> Docker configuration requires an NVIDIA GPU with CUDA support and Docker
+> Desktop GPU integration. It is configured and tested on an RTX 5070 Ti.
+
 With Docker Desktop running, start PostgreSQL (with pgvector), the FastAPI API,
 and the React demo together:
 
@@ -82,6 +86,18 @@ Stop the stack with:
 ```powershell
 docker compose down
 ```
+
+## Import reviews from the dashboard
+
+Use **Import app reviews** to search Google Play or the App Store, select an app,
+and import a small batch. Imports are capped at 20 reviews: each review is
+scraped, labeled by the local LoRA model, embedded, saved to PostgreSQL, and
+included in a refreshed clustering run. When the import completes, generate a
+local action plan from the labeled feedback.
+
+The optional **Use Claude for action plan** button sends only a summary of up to
+10 matching clusters to Anthropic. It requires `ANTHROPIC_API_KEY` in `.env` and
+your explicit click; no Anthropic request is made by default.
 
 ## Verify a local run
 
@@ -124,6 +140,7 @@ also requires using `labeling/teacher_labeler.py --estimate-only` first.
 ## Known limitations
 
 - This is a local portfolio demo, not a deployed multi-user service.
+- The default Docker configuration requires an NVIDIA CUDA-capable GPU for live classification.
 - Most training labels are teacher-generated; the gold set is currently 100 human-labeled reviews.
 - The dashboard's cluster label is inherited from its representative review.
 - Scrapers and the local model depend on the availability and terms of their external providers.

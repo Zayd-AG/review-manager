@@ -32,6 +32,31 @@ class ApiTests(unittest.TestCase):
         response = self.client.post("/classify", json={"text": "x" * 70_000})
         self.assertEqual(response.status_code, 413)
 
+    def test_import_rejects_more_than_twenty_selected_reviews(self) -> None:
+        review = {
+            "text": "Example review",
+            "rating": 5,
+            "date": "2026-08-12T00:00:00+00:00",
+            "source": "google_play",
+            "app_name": "Example",
+        }
+        response = self.client.post(
+            "/imports",
+            json={
+                "source": "google_play",
+                "app_name": "Example",
+                "reviews": [review] * 21,
+            },
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_anthropic_plan_requires_paid_confirmation(self) -> None:
+        response = self.client.post(
+            "/recommendations",
+            json={"app_name": "Example", "provider": "anthropic"},
+        )
+        self.assertEqual(response.status_code, 400)
+
     @unittest.skipUnless(
         os.getenv("RUN_DATABASE_TESTS") == "1", "Database tests are enabled in CI"
     )

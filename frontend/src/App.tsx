@@ -47,6 +47,37 @@ type DashboardSummary = {
     teacher_category_accuracy: number;
   };
 };
+type StoreSource = "google_play" | "app_store";
+type AppSearchResult = {
+  name: string;
+  identifier: string;
+  developer: string | null;
+  icon_url: string | null;
+  store_url: string | null;
+};
+type ImportJob = {
+  id: string;
+  source: StoreSource;
+  app_name: string;
+  requested_reviews: number;
+  status: "queued" | "running" | "completed" | "failed";
+  fetched_reviews: number;
+  labeled_reviews: number;
+  saved_reviews: number;
+  error: string | null;
+};
+type PreviewReview = {
+  text: string;
+  rating: number | null;
+  date: string;
+  source: StoreSource;
+  app_name: string;
+};
+type Recommendation = {
+  provider: "local" | "anthropic";
+  summary: string;
+  actions: { priority: number; title: string; rationale: string; evidence: string }[];
+};
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 const categories: Category[] = [
@@ -93,6 +124,19 @@ export default function App() {
   const [reviewText, setReviewText] = useState("");
   const [classification, setClassification] = useState<Classification | null>(null);
   const [classifying, setClassifying] = useState(false);
+  const [importSource, setImportSource] = useState<StoreSource>("google_play");
+  const [appQuery, setAppQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<AppSearchResult[]>([]);
+  const [searchingApps, setSearchingApps] = useState(false);
+  const [selectedApp, setSelectedApp] = useState<AppSearchResult | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [previewReviews, setPreviewReviews] = useState<PreviewReview[]>([]);
+  const [selectedReviewIndexes, setSelectedReviewIndexes] = useState<Set<number>>(new Set());
+  const [previewingReviews, setPreviewingReviews] = useState(false);
+  const [importJob, setImportJob] = useState<ImportJob | null>(null);
+  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+  const [planning, setPlanning] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     const parameters = new URLSearchParams();
@@ -172,6 +216,112 @@ export default function App() {
     }
   }
 
+  async function searchApps(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (appQuery.trim().length < 2) return;
+    setSearchingApps(true);
+    setSelectedApp(null);
+    setSearchResults([]);
+    setError("");
+    try {
+      const parameters = new URLSearchParams({ source: importSource, query: appQuery.trim() });
+      const response = await fetch(`${API_URL}/apps/search?${parameters}`);
+      if (!response.ok) throw new Error(await errorMessage(response));
+      setSearchResults((await response.json()) as AppSearchResult[]);
+    } catch (searchError) {
+      setError(searchError instanceof Error ? searchError.message : "Could not search the app store.");
+    } finally {
+      setSearchingApps(false);
+    }
+  }
+
+  async function previewImport() {
+    if (!selectedApp) return;
+    setPreviewingReviews(true);
+    setPreviewReviews([]);
+    setSelectedReviewIndexes(new Set());
+    setError("");
+    try {
+      const response = await fetch(`${API_URL}/imports/preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: importSource, app_name: selectedApp.name, identifier: selectedApp.identifier, start_date: startDate || null, end_date: endDate || null }),
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      const reviews = (await response.json()) as PreviewReview[];
+      setPreviewReviews(reviews);
+      setSelectedReviewIndexes(new Set(reviews.map((_, index) => index)));
+    } catch (previewError) {
+      setError(previewError instanceof Error ? previewError.message : "Could not preview reviews.");
+    } finally {
+      setPreviewingReviews(false);
+    }
+  }
+
+  function toggleReview(index: number) {
+    setSelectedReviewIndexes((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  async function startImport() {
+    if (!selectedApp || !selectedReviewIndexes.size) return;
+    setImportJob(null);
+    setRecommendation(null);
+    setError("");
+    try {
+      const response = await fetch(`${API_URL}/imports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: importSource, app_name: selectedApp.name, reviews: previewReviews.filter((_, index) => selectedReviewIndexes.has(index)) }),
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      const job = (await response.json()) as ImportJob;
+      setImportJob(job);
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : "Could not start the import.");
+    }
+  }
+
+  useEffect(() => {
+    if (!importJob || ["completed", "failed"].includes(importJob.status)) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await fetch(`${API_URL}/imports/${importJob.id}`);
+        if (!response.ok) throw new Error(await errorMessage(response));
+        const job = (await response.json()) as ImportJob;
+        setImportJob(job);
+        if (job.status === "completed") void loadDashboard();
+      } catch (pollError) {
+        setError(pollError instanceof Error ? pollError.message : "Could not check import progress.");
+      }
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [importJob, loadDashboard]);
+
+  async function generatePlan(provider: "local" | "anthropic") {
+    if (!selectedApp) return;
+    setPlanning(true);
+    setRecommendation(null);
+    setError("");
+    try {
+      const response = await fetch(`${API_URL}/recommendations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ app_name: selectedApp.name, provider, confirm_paid_request: provider === "anthropic" }),
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      setRecommendation((await response.json()) as Recommendation);
+    } catch (planError) {
+      setError(planError instanceof Error ? planError.message : "Could not generate recommendations.");
+    } finally {
+      setPlanning(false);
+    }
+  }
+
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-5 py-10 text-slate-800">
       <header className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -221,6 +371,55 @@ export default function App() {
             </div>
           ) : <p className="mt-3 text-indigo-700">Metrics load with the dashboard.</p>}
         </div>
+      </section>
+
+      <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-semibold">Import app reviews</h2>
+        <p className="mt-1 text-sm text-slate-500">Search a store, select an app, then import and label a small review batch locally.</p>
+        <form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={searchApps}>
+          <select value={importSource} onChange={(event) => { setImportSource(event.target.value as StoreSource); setSearchResults([]); setSelectedApp(null); }}>
+            <option value="google_play">Google Play</option>
+            <option value="app_store">App Store</option>
+          </select>
+          <input className="min-w-0 flex-1" value={appQuery} onChange={(event) => setAppQuery(event.target.value)} placeholder="Search an app, e.g. Claude" />
+          <button disabled={searchingApps} type="submit">{searchingApps ? "Searching..." : "Search"}</button>
+        </form>
+        {searchResults.length > 0 && (
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {searchResults.map((app) => (
+              <button className={`flex items-center gap-3 rounded-lg border p-3 text-left ${selectedApp?.identifier === app.identifier ? "border-indigo-500 bg-indigo-50" : "border-slate-200"}`} key={app.identifier} onClick={() => setSelectedApp(app)} type="button">
+                {app.icon_url && <img alt="" className="h-10 w-10 rounded-lg" src={app.icon_url} />}
+                <span><strong className="block">{app.name}</strong><span className="text-xs text-slate-500">{app.developer ?? app.identifier}</span></span>
+              </button>
+            ))}
+          </div>
+        )}
+        {selectedApp && (
+          <div className="mt-4 rounded-lg bg-slate-50 p-4">
+            <p className="text-sm"><strong>{selectedApp.name}</strong> selected. Preview up to 30 recent reviews, then choose up to 20 to label.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <label className="text-sm">From <input className="ml-1" onChange={(event) => setStartDate(event.target.value)} type="date" value={startDate} /></label>
+              <label className="text-sm">To <input className="ml-1" onChange={(event) => setEndDate(event.target.value)} type="date" value={endDate} /></label>
+              <button disabled={previewingReviews} onClick={() => void previewImport()} type="button">{previewingReviews ? "Fetching..." : "Preview reviews"}</button>
+            </div>
+          </div>
+        )}
+        {previewReviews.length > 0 && (
+          <div className="mt-4 rounded-lg border border-slate-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-medium">Choose reviews to label ({selectedReviewIndexes.size} selected; maximum 20)</p><button disabled={!selectedReviewIndexes.size || selectedReviewIndexes.size > 20} onClick={() => void startImport()} type="button">Import and label selected</button></div>
+            <div className="mt-3 max-h-96 space-y-2 overflow-y-auto">
+              {previewReviews.map((review, index) => <label className="flex cursor-pointer gap-3 rounded-lg bg-slate-50 p-3 text-sm" key={`${review.date}-${index}`}><input checked={selectedReviewIndexes.has(index)} onChange={() => toggleReview(index)} type="checkbox" /><span><span className="block text-xs text-slate-500">{new Date(review.date).toLocaleDateString()} | {review.rating ?? "no"} stars</span>{review.text}</span></label>)}
+            </div>
+          </div>
+        )}
+        {importJob && (
+          <div className="mt-4 rounded-lg bg-indigo-50 p-4 text-sm text-indigo-950">
+            <p><strong className="capitalize">{importJob.status}</strong>: {importJob.fetched_reviews} fetched, {importJob.labeled_reviews} labeled, {importJob.saved_reviews} saved of {importJob.requested_reviews}.</p>
+            {importJob.error && <p className="mt-1 text-rose-700">{importJob.error}</p>}
+            {importJob.status === "completed" && <div className="mt-3 flex flex-wrap gap-2"><button disabled={planning} onClick={() => void generatePlan("local")} type="button">{planning ? "Generating..." : "Generate local action plan"}</button><button disabled={planning} onClick={() => void generatePlan("anthropic")} type="button">Use Claude for action plan</button></div>}
+          </div>
+        )}
+        {recommendation && <div className="mt-4 rounded-lg bg-emerald-50 p-4 text-sm"><p><strong>Recommended next steps</strong> ({recommendation.provider})</p><p className="mt-1">{recommendation.summary}</p><ol className="mt-3 list-decimal space-y-2 pl-5">{recommendation.actions.map((action) => <li key={action.priority}><strong>{action.title}</strong> - {action.rationale}<p className="mt-1 text-slate-600">Evidence: {action.evidence}</p></li>)}</ol></div>}
       </section>
 
       {error && (
