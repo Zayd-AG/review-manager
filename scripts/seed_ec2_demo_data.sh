@@ -11,7 +11,7 @@ COMPOSE=(docker compose --env-file .env.ec2 -f "$compose_file")
 "${COMPOSE[@]}" up -d
 "${COMPOSE[@]}" exec -T backend python clustering/embed.py --batch-size 64
 "${COMPOSE[@]}" exec -T backend python backend/migrations/apply_migrations.py
-"${COMPOSE[@]}" exec -T backend python backend/scripts/import_pseudo_labels.py
 "${COMPOSE[@]}" exec -T backend python clustering/dedupe.py --threshold 0.85
+"${COMPOSE[@]}" exec -T backend python backend/scripts/import_pseudo_labels.py
 
 echo "Demo data seeded. Open http://<instance-public-ip>/"
