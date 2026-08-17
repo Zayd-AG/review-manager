@@ -29,7 +29,7 @@ flowchart LR
 
 ## Current demo snapshot
 
-- 2,399 normalized mobile-app reviews
+- 2,400 normalized mobile-app reviews
 - 73 similarity clusters at cosine similarity >= 0.85
 - 100 manually labeled gold-set reviews
 - Category accuracy on the gold set: base Qwen **44%**, LoRA-tuned Qwen **72%**, teacher model **73%**
@@ -140,7 +140,11 @@ also requires using `labeling/teacher_labeler.py --estimate-only` first.
 ## Known limitations
 
 - This is a local portfolio demo, not a deployed multi-user service.
+<<<<<<< HEAD
 - The default Docker configuration requires an NVIDIA CUDA-capable GPU for live classification.
 - Most training labels are teacher-generated; the gold set is currently 100 human-labeled reviews.
+=======
+- Most training labels are teacher-generated;
+>>>>>>> c602267f18fb21978ff4887d4ff293674e136a47
 - The dashboard's cluster label is inherited from its representative review.
 - Scrapers and the local model depend on the availability and terms of their external providers.
